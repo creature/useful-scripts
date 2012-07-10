@@ -1,0 +1,16 @@
+#!/bin/bash
+# Usage: kickstart foldername "Text-based description"
+
+SVN_ROOT=http://change.this.to/your/svn/repo/root
+TEMP_DIR=/tmp
+PROJ_DIR=${TEMP_DIR}/$1
+
+mkdir -p ${PROJ_DIR}/trunk
+mkdir ${PROJ_DIR}/tags
+mkdir ${PROJ_DIR}/branches
+svn import -m \"Create SVN repository for $2\" ${PROJ_DIR} ${SVN_ROOT}/$1
+rmdir ${PROJ_DIR}/trunk
+rmdir ${PROJ_DIR}/tags
+rmdir ${PROJ_DIR}/branches
+svn co ${SVN_ROOT}/$1/trunk $1
+
