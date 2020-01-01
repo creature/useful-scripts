@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+#
+# A helper script that reads Alien Skin sidecar files (ie. the metadata for organised photos)
+# and applies OSX filesystem tags based on the metadata. If you flag an image as a "pick" in Alien Skin,
+# it'll get the TAG_YES tag applied; if you rate it >= TAG_STAR_THRESHOLD and it's not a pick, then you'll
+# get the TAG_MAYBE tag applied.
+# - Requires the Nokogiri gem
+# - Requires the 'tag' utility (brew install tag)
+
+require 'nokogiri'
+
+TAG_YES = "To be edited"
+TAG_MAYBE = "Maybe"
+TAG_STAR_THRESHOLD = 2
+
+ALIENSKIN_FLAG_PICK = 1
+ALIENSKIN_FLAG_REJECT = 2
+
+# Get the "description" node that stores our ratings.
+def descriptions_for(xml_doc)
+  xml_doc.xpath("//rdf:Description", "rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+end
+
+# Was this image flagged as a pick?
+def picked?(node)
+  node.xpath("@alienexposure:pickflag", "alienexposure" => "http://www.alienskin.com/exposure#").first&.value&.to_i == ALIENSKIN_FLAG_PICK
+end
+
+# How many stars did we give this image?
+def stars_for(node)
+  node.xpath("@xmp:Rating", "xmp" => "http://ns.adobe.com/xap/1.0/").first&.value&.to_i || 0
+end
+
+# Given the name of an Alien Skin image file, return the matching image file name.
+def image_file_for(alienskin_file)
+  if alienskin_file.end_with?("x4")
+    File.basename(alienskin_file, ".exposurex4")
+  elsif alienskin_file.end_with?("x5")
+    File.basename(alienskin_file, ".exposurex5")
+  end
+end
+
+files = []
+
+if Dir.exist?("Alien Skin") && Dir.exist?("Alien Skin/Exposure X4")
+  files = Dir.glob("Alien Skin/Exposure X4/*.exposurex4")
+elsif Dir.exist?("Exposure Software") && Dir.exist?("Exposure Software/Exposure X5")
+  files = Dir.glob("Exposure Software/Exposure X5/*.exposurex5")
+else
+  puts "No Alien Skin metadata found"
+end
+
+files.each do |file_name| # Read each sidecar file in turn
+  xml_doc = File.open(file_name) { |f| Nokogiri::XML(f) }
+
+  # Find this image's ratings and flags.
+  descriptions_for(xml_doc).each do |desc|
+    if picked?(desc)
+      puts "Tagging #{file_name} as pick"
+      `env tag -a \"#{TAG_YES}\" \"#{image_file_for(file_name)}\"`
+    elsif stars_for(desc) >= TAG_STAR_THRESHOLD
+      puts "Tagging #{file_name} as maybe"
+      `env tag -a \"#{TAG_MAYBE}\" \"#{image_file_for(file_name)}\"`
+    end
+  end
+end
+
+

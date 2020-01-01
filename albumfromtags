@@ -1,0 +1,34 @@
+#!/usr/bin/env ruby
+#
+# A helper script that reads filesystem tags from images in the current directory. If they're tagged with
+# TAG_YES or TAG_MAYBE, then the similarly-named JPEG is copied into a "images_for_gallery" directory.
+# Then, the "sigal" gallery generator is run (using the config file in ~/.dotfiles) to output the
+# gallery into a "html_gallery" directory. Finally, the images_for_gallery directory is removed.
+
+require 'fileutils'
+
+TAG_YES = "To be edited".freeze
+TAG_MAYBE = "Maybe".freeze
+IMAGE_DIR = "images_for_gallery".freeze
+GALLERY_DIR = "html_gallery".freeze
+SIGAL_CONFIG = "/home/alex/.dotfiles/sigal.conf.py".freeze
+
+yes_tagged_files = `env tag -m \"#{TAG_YES}\"`
+maybe_tagged_files = `env tag -m \"#{TAG_MAYBE}\"`
+tagged_files = [yes_tagged_files.split, maybe_tagged_files.split].flatten.uniq
+
+if tagged_files.any?
+  Dir.mkdir(IMAGE_DIR)
+
+  tagged_files.map! { |tf| File.basename(tf, ".RAF") + ".JPG" }
+  FileUtils.cp(tagged_files, IMAGE_DIR)
+  current_dir = Dir.getwd
+  current_dir = File.basename(current_dir)
+  if matches = current_dir.match(/\d+ - (.*)/)
+    current_dir = matches[1]
+  end
+
+  `sigal build -c \"#{SIGAL_CONFIG}\" --title \"#{current_dir}\" \"#{IMAGE_DIR}\" \"#{GALLERY_DIR}\"`
+
+  FileUtils.rm_r(IMAGE_DIR)
+end
